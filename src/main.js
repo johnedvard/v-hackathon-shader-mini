@@ -3,13 +3,13 @@ c.width = innerWidth;
 c.height = innerHeight;
 gl.viewport(0, 0, c.width, c.height);
 
-// Vertex shader (pass-through)
 const vs = `
 attribute vec2 p;
 void main() {
   gl_Position = vec4(p, 0, 1);
 }`;
 
+// noise copied from https://github.com/stegu/webgl-noise
 const noiseShader = `
 // Modulo 289 without a division (only multiplications)
 vec3 mod289(vec3 x) {
@@ -72,7 +72,6 @@ float snoise(vec2 v)
   return 130.0 * dot(m, g);
 }`;
 
-// Modified fragment shader
 const fs = `
 precision mediump float;
 uniform float u_time;
@@ -90,7 +89,8 @@ vec3 black = vec3(0.0,0.0,0.0);
 vec3 orange = vec3(0.9255, 0.3882, 0.0745);
 vec3 lower_color_1 = vec3(1.0, 0.7, 0.5);
 vec3 lower_color_2 = vec3(1.0, 1.0, 0.9);
-float S = 10.0;
+float S = 40.0;
+
 float PI = 3.14;
 
 void main() {
@@ -100,12 +100,10 @@ void main() {
   float t = y / (u_resolution.y - 1.0);
   float MID_Y = u_resolution.y * 0.5;
 
-  float A = 20.0 + 80.0 * (1.0 + sin(u_time));
-  float L = 5.0;
-  //float Hz = (2.0 * PI) / L;
+  float A = 80.0 * (1.0 + sin(u_time));
+  float L = 1.0;
   float Hz = 0.01;
   float curve_y = MID_Y + sin((x + u_time * S) * Hz) * A;
-  // float curve_y = MID_Y + sin((x + u_time * S) * Hz) * A;
      
   curve_y += snoise(vec2(x * L * 10.0, u_time)) * A * 0.01;
   curve_y += snoise(vec2(x * L * 10.0, u_time)) * A * 0.05;
@@ -113,12 +111,9 @@ void main() {
   float verticalAmp = u_resolution.y * 0.5;
   float phase = u_time * 0.5;
   
-  // Create vertical sine displacement
-  float sineY = y + sin(y/u_resolution.y * PI * 2.0 * 0.5 + phase) * verticalAmp;
-
-  
-  // Calculate distance with modified y
-  float dist = curve_y - (sineY);
+  // make the wave go up and down
+  float deltaY = y + sin(y/u_resolution.y * PI * 2.0 * 0.5 + phase) * verticalAmp;
+  float dist = curve_y - (deltaY);
   float alpha = (sign(dist) + 1.0) / 2.0;
   
   vec3 color_1 = orange;
@@ -126,9 +121,8 @@ void main() {
   lower_color_1 = white;
   lower_color_2 = black;
 
-   // Animate saturation with sine wave
-  float saturationSpeed = 0.69;  // Adjust animation speed
-  float saturationAmount = sin(u_time * saturationSpeed) * 0.5;  // [-0.5, 0.5]
+  float saturationSpeed = 0.69; // 8)
+  float saturationAmount = sin(u_time * saturationSpeed) * 0.5;
 
   if(x >= u_resolution.x*0.3 && x <= u_resolution.x*0.7){
     color_1 = white;
@@ -158,26 +152,22 @@ void main() {
   gl_FragColor = vec4(color, 1.0);
 }`;
 
-// Compile shader
 function compile(type, src) {
-  let s = gl.createShader(type);
-  gl.shaderSource(s, src);
-  gl.compileShader(s);
-  return s;
+  let shader = gl.createShader(type);
+  gl.shaderSource(shader, src);
+  gl.compileShader(shader);
+  return shader;
 }
 
-// Create program
 let prog = gl.createProgram();
 gl.attachShader(prog, compile(gl.VERTEX_SHADER, vs));
 gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, fs));
 gl.linkProgram(prog);
 gl.useProgram(prog);
 
-// Set resolution uniform
 const u_resolution = gl.getUniformLocation(prog, "u_resolution");
 gl.uniform2f(u_resolution, c.width, c.height);
 
-// Fullscreen quad
 let buf = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, buf);
 gl.bufferData(
@@ -189,11 +179,10 @@ let loc = gl.getAttribLocation(prog, "p");
 gl.enableVertexAttribArray(loc);
 gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
-// Animation loop
 let u_time = gl.getUniformLocation(prog, "u_time");
-function draw(t) {
+function raf(t) {
   gl.uniform1f(u_time, t * 0.001);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-  requestAnimationFrame(draw);
+  requestAnimationFrame(raf);
 }
-draw(0);
+raf(0);
